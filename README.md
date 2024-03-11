@@ -8,7 +8,7 @@ This is a package that provide Access Control List for Laravel 6.0|7.0|8.0|9.0.
 
 For Laravel 6.0|7.0|8.0 use v1.
 
-For Laravel 9.0 use v2.
+For Laravel 9.0|10.0 use v2.
 
 ## Getting started
 
