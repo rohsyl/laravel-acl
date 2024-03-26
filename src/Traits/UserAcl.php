@@ -37,7 +37,25 @@ trait UserAcl
         $permissionId = $config[$permission];
         $teams = is_array($arguments) && isset($arguments[ACL_ARG_GROUP]) ? $arguments[ACL_ARG_GROUP] : null;
 
-        $closure = function() use ($arguments, $permissionId, $level, $strict) {
+
+        $contexts = $this->getConfig('context') ?? [];
+        $model = null;
+        $isRestrictive = false;
+        foreach($contexts as $ctx) {
+            $handler = new $ctx['handler'];
+            if($handler->active()) {
+                $model = $handler->model();
+                $isRestrictive = $ctx['restrictive'] ?? false;
+                break;
+            }
+        }
+        if(isset($model)) {
+            $arguments[ACL_ARG_GROUP] = $model;
+        }
+
+
+
+        $closure = function() use ($arguments, $permissionId, $level, $strict, $isRestrictive) {
 
             $userAcl = null;
             $groupAcl = null;
@@ -80,7 +98,12 @@ trait UserAcl
 
             // if user and group has ACL, merge it
             if(isset($userAcl) && isset($groupAcl)) {
-                $acl = $this->aclMerge([$userAcl, $groupAcl]);
+                if($isRestrictive) {
+                    $acl = $this->aclRestrictMerge($userAcl, $groupAcl);
+                }
+                else {
+                    $acl = $this->aclMerge([$userAcl, $groupAcl]);
+                }
             }
             // else return the user acl or the group or null
             else {
@@ -151,7 +174,7 @@ trait UserAcl
     private function aclMerge(array $groups) {
         $count = max(array_values($this->getPermissions())) + 1;
         $out = str_repeat(ACL_NONE, $count );
-        for($i = 0; $i < $count; $i++) {
+        for ($i = 0; $i < $count; $i++) {
             $permMerged = ACL_NONE;
             foreach($groups as $group) {
                 $permissionLevel = $group[-1*($i+1)] ?? ACL_NONE;
@@ -161,6 +184,25 @@ trait UserAcl
                 }
             }
             $out[-1*($i+1)] = $permMerged;
+        }
+        return $out;
+    }
+
+    private function aclRestrictMerge($userAcl, $groupAcl) {
+
+        $count = max(array_values($this->getPermissions())) + 1;
+        $out = str_repeat(ACL_NONE, $count );
+        for ($i = 0; $i < $count; $i++) {
+
+            $userPermLevel = $userAcl[-1*($i+1)] ?? ACL_NONE;
+            $groupPermLevel = $groupAcl[-1*($i+1)] ?? ACL_NONE;
+
+            if($groupPermLevel == ACL_NONE) {
+                $out[-1 * ($i + 1)] = ACL_NONE;
+            }
+            else {
+                $out[-1 * ($i + 1)] = $userPermLevel;
+            }
         }
         return $out;
     }
